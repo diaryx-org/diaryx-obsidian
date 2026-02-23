@@ -1,6 +1,11 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
+import { copyFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const banner =
 `/*
@@ -11,12 +16,30 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === "production");
 
+/** Copy the WASM binary to the plugin root on each build. */
+const copyWasmPlugin = {
+	name: "copy-wasm",
+	setup(build) {
+		build.onEnd(() => {
+			try {
+				copyFileSync(
+					resolve(__dirname, "node_modules/@diaryx/wasm-node/diaryx_wasm_bg.wasm"),
+					resolve(__dirname, "diaryx_wasm_bg.wasm")
+				);
+			} catch (e) {
+				console.warn("Warning: Could not copy WASM file:", e.message);
+			}
+		});
+	},
+};
+
 const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
 	entryPoints: ["src/main.ts"],
 	bundle: true,
+	plugins: [copyWasmPlugin],
 	external: [
 		"obsidian",
 		"electron",

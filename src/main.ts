@@ -1,99 +1,176 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import {Notice, Plugin, TAbstractFile, TFile} from "obsidian";
+import {DiaryxBackend} from "@diaryx/wasm-node";
+import {DEFAULT_SETTINGS, DiaryxSettings, DiaryxSettingTab} from "./settings";
+import {createBackend} from "./wasm";
+import {ConfirmModal} from "./confirm-modal";
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class DiaryxPlugin extends Plugin {
+	settings: DiaryxSettings;
+	backend: DiaryxBackend | null = null;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		// Always register commands (import is a one-time action, not gated by enabled)
+		this.addCommand({
+			id: "import-vault-to-diaryx",
+			name: "Import vault to Diaryx format",
+			callback: () => this.importVault(),
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		this.addSettingTab(new DiaryxSettingTab(this.app, this));
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+		if (!this.settings.enabled) return;
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		// Initialize backend asynchronously — don't block plugin load
+		this.initBackend();
+
+		// Hook into vault events to keep hierarchy metadata in sync
+		this.registerEvent(
+			this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
+				if (file instanceof TFile && file.extension === "md") {
+					this.onFileRenamed(file.path, oldPath);
 				}
-				return false;
-			}
-		});
+			})
+		);
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.registerEvent(
+			this.app.vault.on("create", (file: TAbstractFile) => {
+				if (file instanceof TFile && file.extension === "md") {
+					this.onFileCreated(file.path);
+				}
+			})
+		);
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		this.registerEvent(
+			this.app.vault.on("delete", (file: TAbstractFile) => {
+				if (file instanceof TFile && file.extension === "md") {
+					this.onFileDeleted(file.path);
+				}
+			})
+		);
 	}
 
 	onunload() {
+		if (this.backend) {
+			this.backend.free();
+			this.backend = null;
+		}
+	}
+
+	/** Initialize or return the WASM backend on demand. */
+	private async ensureBackend(): Promise<DiaryxBackend | null> {
+		if (this.backend) return this.backend;
+		try {
+			this.backend = await createBackend(this.app, this.manifest.id);
+			return this.backend;
+		} catch (e) {
+			console.error("Diaryx: Failed to initialize WASM backend:", e);
+			new Notice("Diaryx: Failed to load. Check console for details.");
+			return null;
+		}
+	}
+
+	private async initBackend() {
+		try {
+			this.backend = await createBackend(this.app, this.manifest.id);
+		} catch (e) {
+			console.error("Diaryx: Failed to initialize WASM backend:", e);
+			new Notice("Diaryx: Failed to load. Check console for details.");
+		}
+	}
+
+	private async importVault() {
+		const backend = await this.ensureBackend();
+		if (!backend) return;
+
+		const mdCount = this.app.vault.getMarkdownFiles().length;
+
+		const confirmed = await new ConfirmModal(
+			this.app,
+			"Import vault to Diaryx format",
+			`This will add Diaryx hierarchy metadata (part_of, contents) to ` +
+			`${mdCount} markdown files in your vault. Index files will be created ` +
+			`for directories that don't have one. Existing file content will not ` +
+			`be modified.`,
+		).waitForResult();
+
+		if (!confirmed) return;
+
+		const notice = new Notice("Diaryx: Converting vault...", 0);
+		try {
+			const response = await backend.executeJs({
+				type: "ImportDirectoryInPlace",
+				params: {},
+			});
+
+			notice.hide();
+
+			const data = typeof response === "string" ? JSON.parse(response) : response;
+			const result = data?.data ?? data;
+
+			new Notice(
+				`Diaryx: Conversion complete. ` +
+				`Updated: ${result.imported ?? 0}, ` +
+				`Skipped: ${result.skipped ?? 0}` +
+				(result.errors?.length > 0 ? `, Errors: ${result.errors.length}` : ""),
+				10000,
+			);
+
+			if (result.errors?.length > 0) {
+				console.warn("Diaryx import errors:", result.errors);
+			}
+		} catch (e) {
+			notice.hide();
+			console.error("Diaryx: Import failed:", e);
+			new Notice("Diaryx: Import failed. Check console for details.");
+		}
+	}
+
+	private async onFileRenamed(newPath: string, oldPath: string) {
+		if (!this.backend) return;
+
+		try {
+			await this.backend.executeJs({
+				type: "SyncMoveMetadata",
+				params: {old_path: oldPath, new_path: newPath},
+			});
+		} catch (e) {
+			console.error(`Diaryx: Failed to sync metadata for ${oldPath} -> ${newPath}:`, e);
+		}
+	}
+
+	private async onFileCreated(path: string) {
+		if (!this.backend) return;
+
+		try {
+			await this.backend.executeJs({
+				type: "SyncCreateMetadata",
+				params: {path},
+			});
+		} catch (e) {
+			console.error(`Diaryx: Failed to sync create metadata for ${path}:`, e);
+		}
+	}
+
+	private async onFileDeleted(path: string) {
+		if (!this.backend) return;
+
+		try {
+			await this.backend.executeJs({
+				type: "SyncDeleteMetadata",
+				params: {path},
+			});
+		} catch (e) {
+			console.error(`Diaryx: Failed to sync delete metadata for ${path}:`, e);
+		}
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<DiaryxSettings>);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
 	}
 }

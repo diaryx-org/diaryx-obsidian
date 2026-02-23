@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "diaryx-obsidian",
+	"name": "Diaryx Obsidian",
+	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Maintains Diaryx workspace hierarchy (contents/part_of) when files are moved or renamed.",
+	"author": "Diaryx",
+	"authorUrl": "https://diaryx.org",
 	"isDesktopOnly": false
 }

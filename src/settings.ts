@@ -1,35 +1,33 @@
 import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import type DiaryxPlugin from "./main";
 
-export interface MyPluginSettings {
-	mySetting: string;
+export interface DiaryxSettings {
+	enabled: boolean;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+export const DEFAULT_SETTINGS: DiaryxSettings = {
+	enabled: true,
+};
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class DiaryxSettingTab extends PluginSettingTab {
+	plugin: DiaryxPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: DiaryxPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
 		const {containerEl} = this;
-
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+			.setName("Enable hierarchy sync")
+			.setDesc("Automatically update contents/part_of frontmatter when files are moved or renamed.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enabled)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.enabled = value;
 					await this.plugin.saveSettings();
 				}));
 	}
