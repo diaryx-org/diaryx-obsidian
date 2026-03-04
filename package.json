@@ -1,7 +1,7 @@
 {
 	"name": "diaryx-obsidian",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"version": "0.1.0",
+	"description": "Maintains Diaryx workspace hierarchy (contents/part_of) when files are moved or renamed.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -11,20 +11,20 @@
 		"lint": "eslint ."
 	},
 	"keywords": [],
-	"license": "0-BSD",
+	"license": "MIT",
 	"devDependencies": {
 		"@eslint/js": "10.0.1",
-		"@types/node": "^25.3.0",
+		"@types/node": "^25.3.3",
 		"esbuild": "0.27.3",
 		"eslint-plugin-obsidianmd": "0.1.9",
-		"globals": "17.3.0",
+		"globals": "17.4.0",
 		"jiti": "2.6.1",
 		"tslib": "2.8.1",
 		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.56.0"
+		"typescript-eslint": "^8.56.1"
 	},
 	"dependencies": {
-		"@diaryx/wasm-node": "1.2.1-dev.81cd22f",
-		"obsidian": "^1.12.2"
+		"@diaryx/wasm-node": "^1.2.1-dev.81cd22f",
+		"obsidian": "^1.12.3"
 	}
 }
