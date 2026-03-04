@@ -68,6 +68,19 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	return copy.buffer;
 }
 
+async function assertExtismCompatibleWasm(wasmBytes: Uint8Array): Promise<void> {
+	const compiled = await WebAssembly.compile(toArrayBuffer(wasmBytes));
+	const imports = WebAssembly.Module.imports(compiled);
+	const hasWasmBindgenPlaceholder = imports.some(i => i.module === "__wbindgen_placeholder__");
+
+	if (hasWasmBindgenPlaceholder) {
+		throw new Error(
+			"Embedded import WASM requires wasm-bindgen host imports (__wbindgen_placeholder__), " +
+			"which are not supported by this Extism runtime in Obsidian.",
+		);
+	}
+}
+
 async function listFilesRecursive(adapter: VaultAdapter, dir: string): Promise<string[]> {
 	const files: string[] = [];
 
@@ -290,6 +303,7 @@ class ExtismImportRuntime implements ImportRuntime {
 
 export async function createImportRuntime(app: App): Promise<ImportRuntime> {
 	const wasmBytes = decodeWasmDataUrl(importWasmDataUrl);
+	await assertExtismCompatibleWasm(wasmBytes);
 	const plugin = await createPlugin(toArrayBuffer(wasmBytes), {
 		useWasi: true,
 		functions: buildHostFunctions(app),

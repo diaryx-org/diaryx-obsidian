@@ -97,15 +97,43 @@ export default class DiaryxPlugin extends Plugin {
 			this.importRuntime = await createImportRuntime(this.app);
 			return this.importRuntime;
 		} catch (e) {
-			console.error("Diaryx: Failed to initialize import runtime:", e);
-			new Notice("Diaryx: import runtime unavailable. Check console for details.");
+			console.warn("Diaryx: Import runtime unavailable, falling back to core backend:", e);
 			return null;
 		}
 	}
 
+	private async importVaultFallback(backend: DiaryxBackend): Promise<ImportDirectoryInPlaceResult> {
+		const files = this.app.vault.getMarkdownFiles()
+			.map(file => file.path)
+			.sort((a, b) => {
+				const depth = a.split("/").length - b.split("/").length;
+				return depth !== 0 ? depth : a.localeCompare(b);
+			});
+
+		let imported = 0;
+		let skipped = 0;
+		const errors: string[] = [];
+
+		for (const path of files) {
+			try {
+				await backend.executeJs({
+					type: "SyncCreateMetadata",
+					params: {path},
+				});
+				imported += 1;
+			} catch (e) {
+				skipped += 1;
+				errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+			}
+		}
+
+		return {imported, skipped, errors};
+	}
+
 	private async importVault() {
+		const backend = await this.ensureBackend();
+		if (!backend) return;
 		const runtime = await this.ensureImportRuntime();
-		if (!runtime) return;
 
 		const mdCount = this.app.vault.getMarkdownFiles().length;
 
@@ -122,7 +150,22 @@ export default class DiaryxPlugin extends Plugin {
 
 		const notice = new Notice("Diaryx: converting vault...", 0);
 		try {
-			const result: ImportDirectoryInPlaceResult = await runtime.importDirectoryInPlace("");
+			let result: ImportDirectoryInPlaceResult;
+			let usedFallback = false;
+
+			if (runtime) {
+				try {
+					result = await runtime.importDirectoryInPlace("");
+				} catch (runtimeError) {
+					console.warn("Diaryx: Import runtime failed, using fallback path:", runtimeError);
+					usedFallback = true;
+					result = await this.importVaultFallback(backend);
+				}
+			} else {
+				usedFallback = true;
+				result = await this.importVaultFallback(backend);
+			}
+
 			notice.hide();
 
 			const errors = result.errors;
@@ -130,7 +173,8 @@ export default class DiaryxPlugin extends Plugin {
 				`Diaryx: Conversion complete. ` +
 				`Updated: ${result.imported ?? 0}, ` +
 				`Skipped: ${result.skipped ?? 0}` +
-				(errors && errors.length > 0 ? `, Errors: ${errors.length}` : ""),
+				(errors && errors.length > 0 ? `, Errors: ${errors.length}` : "") +
+				(usedFallback ? " (fallback mode)" : ""),
 				10000,
 			);
 
