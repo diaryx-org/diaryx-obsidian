@@ -20,3 +20,6 @@ data.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+
+# WASM binary (copied from node_modules at build time)
+diaryx_wasm_bg.wasm

@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "diaryx-obsidian",
 	"version": "1.0.0",
 	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
 	"main": "main.js",
@@ -24,7 +24,7 @@
 		"typescript-eslint": "^8.56.0"
 	},
 	"dependencies": {
-		"@diaryx/wasm-node": "^1.2.0-dev.d069796",
+		"@diaryx/wasm-node": "1.2.1-dev.81cd22f",
 		"obsidian": "^1.12.2"
 	}
 }
