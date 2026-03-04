@@ -1,7 +1,7 @@
 {
 	"id": "diaryx",
 	"name": "Diaryx Obsidian",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"minAppVersion": "1.12.0",
 	"description": "Maintains Diaryx workspace hierarchy (contents/part_of) when files are moved or renamed.",
 	"author": "Diaryx",
