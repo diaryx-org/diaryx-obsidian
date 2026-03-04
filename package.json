@@ -1,6 +1,6 @@
 {
 	"name": "diaryx-obsidian",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Maintains Diaryx workspace hierarchy (contents/part_of) when files are moved or renamed.",
 	"main": "main.js",
 	"type": "module",
