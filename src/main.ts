@@ -1,19 +1,18 @@
 import {Notice, Plugin, TAbstractFile, TFile} from "obsidian";
 import type {DiaryxBackend} from "@diaryx/wasm-node";
-
-interface ImportResult {
-	data?: ImportResult;
-	imported?: number;
-	skipped?: number;
-	errors?: string[];
-}
 import {DEFAULT_SETTINGS, DiaryxSettings, DiaryxSettingTab} from "./settings";
 import {createBackend} from "./wasm";
 import {ConfirmModal} from "./confirm-modal";
+import {
+	createImportRuntime,
+	type ImportDirectoryInPlaceResult,
+	type ImportRuntime,
+} from "./import-plugin";
 
 export default class DiaryxPlugin extends Plugin {
 	settings: DiaryxSettings;
 	backend: DiaryxBackend | null = null;
+	importRuntime: ImportRuntime | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -63,6 +62,10 @@ export default class DiaryxPlugin extends Plugin {
 			this.backend.free();
 			this.backend = null;
 		}
+		if (this.importRuntime) {
+			void this.importRuntime.close();
+			this.importRuntime = null;
+		}
 	}
 
 	/** Initialize or return the WASM backend on demand. */
@@ -87,9 +90,22 @@ export default class DiaryxPlugin extends Plugin {
 		}
 	}
 
+	/** Initialize or return the Extism import runtime on demand. */
+	private async ensureImportRuntime(): Promise<ImportRuntime | null> {
+		if (this.importRuntime) return this.importRuntime;
+		try {
+			this.importRuntime = await createImportRuntime(this.app);
+			return this.importRuntime;
+		} catch (e) {
+			console.error("Diaryx: Failed to initialize import runtime:", e);
+			new Notice("Diaryx: import runtime unavailable. Check console for details.");
+			return null;
+		}
+	}
+
 	private async importVault() {
-		const backend = await this.ensureBackend();
-		if (!backend) return;
+		const runtime = await this.ensureImportRuntime();
+		if (!runtime) return;
 
 		const mdCount = this.app.vault.getMarkdownFiles().length;
 
@@ -106,15 +122,8 @@ export default class DiaryxPlugin extends Plugin {
 
 		const notice = new Notice("Diaryx: converting vault...", 0);
 		try {
-			const raw = await backend.executeJs({
-				type: "ImportDirectoryInPlace",
-				params: {},
-			}) as unknown;
-
+			const result: ImportDirectoryInPlaceResult = await runtime.importDirectoryInPlace("");
 			notice.hide();
-
-			const parsed = (typeof raw === "string" ? JSON.parse(raw) as ImportResult : raw as ImportResult);
-			const result: ImportResult = parsed.data ?? parsed;
 
 			const errors = result.errors;
 			new Notice(

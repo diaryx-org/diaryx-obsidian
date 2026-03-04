@@ -5,7 +5,7 @@ Obsidian plugin that maintains [Diaryx](https://diaryx.org) workspace hierarchy 
 ## Features
 
 - **Hierarchy sync** — Automatically updates `contents` and `part_of` frontmatter fields whenever markdown files are moved, renamed, created, or deleted in your vault.
-- **Import command** — "Import vault to Diaryx format" command converts an existing vault into Diaryx's hierarchy format, adding metadata to all markdown files and creating index files for directories.
+- **Import command** — "Import vault to Diaryx format" command runs the embedded `diaryx.import` Extism plugin (`ImportDirectoryInPlace`) to convert existing files into Diaryx hierarchy format.
 - **Settings** — Toggle hierarchy sync on or off from the plugin settings tab.
 
 ## Installation
@@ -21,4 +21,7 @@ npm run dev    # watch mode
 npm run build  # production build
 ```
 
-The build uses esbuild to bundle `src/main.ts` into `main.js` and inlines the WASM binary from `@diaryx/wasm-node` into the bundle.
+The build uses esbuild to bundle `src/main.ts` into `main.js` and inlines WASM binaries for both:
+
+- `@diaryx/wasm-node` core backend
+- `src/assets/diaryx_import_extism.wasm` import plugin runtime
