@@ -5,7 +5,7 @@ Obsidian plugin that maintains [Diaryx](https://diaryx.org) workspace hierarchy 
 ## Features
 
 - **Hierarchy sync** — Automatically updates `contents` and `part_of` frontmatter fields whenever markdown files are moved, renamed, created, or deleted in your vault.
-- **Import command** — "Import vault to Diaryx format" command runs the embedded `diaryx.import` Extism plugin (`ImportDirectoryInPlace`) when available, and falls back to core metadata sync conversion if the runtime cannot initialize.
+- **Import command** — "Import vault to Diaryx format" command runs core metadata sync conversion by default, and falls back to the embedded `diaryx.import` Extism plugin (`ImportDirectoryInPlace`) if the core backend is unavailable.
 - **Settings** — Toggle hierarchy sync on or off from the plugin settings tab.
 
 ## Installation

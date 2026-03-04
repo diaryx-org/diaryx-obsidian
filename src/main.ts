@@ -90,19 +90,19 @@ export default class DiaryxPlugin extends Plugin {
 		}
 	}
 
-	/** Initialize or return the Extism import runtime on demand. */
+	/** Initialize or return the Extism import runtime on demand (secondary path). */
 	private async ensureImportRuntime(): Promise<ImportRuntime | null> {
 		if (this.importRuntime) return this.importRuntime;
 		try {
 			this.importRuntime = await createImportRuntime(this.app);
 			return this.importRuntime;
 		} catch (e) {
-			console.warn("Diaryx: Import runtime unavailable, falling back to core backend:", e);
+			console.warn("Diaryx: Extism import runtime unavailable:", e);
 			return null;
 		}
 	}
 
-	private async importVaultFallback(backend: DiaryxBackend): Promise<ImportDirectoryInPlaceResult> {
+	private async importVaultWithCoreSync(backend: DiaryxBackend): Promise<ImportDirectoryInPlaceResult> {
 		const files = this.app.vault.getMarkdownFiles()
 			.map(file => file.path)
 			.sort((a, b) => {
@@ -130,11 +130,16 @@ export default class DiaryxPlugin extends Plugin {
 		return {imported, skipped, errors};
 	}
 
-	private async importVault() {
-		const backend = await this.ensureBackend();
-		if (!backend) return;
+	private async importVaultWithExtismFallback(): Promise<ImportDirectoryInPlaceResult> {
 		const runtime = await this.ensureImportRuntime();
+		if (!runtime) {
+			throw new Error("Extism import runtime unavailable.");
+		}
 
+		return runtime.importDirectoryInPlace("");
+	}
+
+	private async importVault() {
 		const mdCount = this.app.vault.getMarkdownFiles().length;
 
 		const confirmed = await new ConfirmModal(
@@ -151,19 +156,21 @@ export default class DiaryxPlugin extends Plugin {
 		const notice = new Notice("Diaryx: converting vault...", 0);
 		try {
 			let result: ImportDirectoryInPlaceResult;
-			let usedFallback = false;
+			let usedExtismFallback = false;
+			const backend = await this.ensureBackend();
 
-			if (runtime) {
+			if (backend) {
 				try {
-					result = await runtime.importDirectoryInPlace("");
-				} catch (runtimeError) {
-					console.warn("Diaryx: Import runtime failed, using fallback path:", runtimeError);
-					usedFallback = true;
-					result = await this.importVaultFallback(backend);
+					result = await this.importVaultWithCoreSync(backend);
+				} catch (coreError) {
+					console.warn("Diaryx: Core import path failed, trying Extism fallback:", coreError);
+					result = await this.importVaultWithExtismFallback();
+					usedExtismFallback = true;
 				}
 			} else {
-				usedFallback = true;
-				result = await this.importVaultFallback(backend);
+				console.warn("Diaryx: Core backend unavailable, trying Extism fallback.");
+				result = await this.importVaultWithExtismFallback();
+				usedExtismFallback = true;
 			}
 
 			notice.hide();
@@ -174,7 +181,7 @@ export default class DiaryxPlugin extends Plugin {
 				`Updated: ${result.imported ?? 0}, ` +
 				`Skipped: ${result.skipped ?? 0}` +
 				(errors && errors.length > 0 ? `, Errors: ${errors.length}` : "") +
-				(usedFallback ? " (fallback mode)" : ""),
+				(usedExtismFallback ? " (Extism fallback mode)" : ""),
 				10000,
 			);
 
