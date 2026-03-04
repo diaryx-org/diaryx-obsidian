@@ -1,5 +1,12 @@
 import {Notice, Plugin, TAbstractFile, TFile} from "obsidian";
-import {DiaryxBackend} from "@diaryx/wasm-node";
+import type {DiaryxBackend} from "@diaryx/wasm-node";
+
+interface ImportResult {
+	data?: ImportResult;
+	imported?: number;
+	skipped?: number;
+	errors?: string[];
+}
 import {DEFAULT_SETTINGS, DiaryxSettings, DiaryxSettingTab} from "./settings";
 import {createBackend} from "./wasm";
 import {ConfirmModal} from "./confirm-modal";
@@ -23,13 +30,13 @@ export default class DiaryxPlugin extends Plugin {
 		if (!this.settings.enabled) return;
 
 		// Initialize backend asynchronously — don't block plugin load
-		this.initBackend();
+		void this.initBackend();
 
 		// Hook into vault events to keep hierarchy metadata in sync
 		this.registerEvent(
 			this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
 				if (file instanceof TFile && file.extension === "md") {
-					this.onFileRenamed(file.path, oldPath);
+					void this.onFileRenamed(file.path, oldPath);
 				}
 			})
 		);
@@ -37,7 +44,7 @@ export default class DiaryxPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on("create", (file: TAbstractFile) => {
 				if (file instanceof TFile && file.extension === "md") {
-					this.onFileCreated(file.path);
+					void this.onFileCreated(file.path);
 				}
 			})
 		);
@@ -45,7 +52,7 @@ export default class DiaryxPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on("delete", (file: TAbstractFile) => {
 				if (file instanceof TFile && file.extension === "md") {
-					this.onFileDeleted(file.path);
+					void this.onFileDeleted(file.path);
 				}
 			})
 		);
@@ -66,7 +73,7 @@ export default class DiaryxPlugin extends Plugin {
 			return this.backend;
 		} catch (e) {
 			console.error("Diaryx: Failed to initialize WASM backend:", e);
-			new Notice("Diaryx: Failed to load. Check console for details.");
+			new Notice("Diaryx: failed to load. Check console for details.");
 			return null;
 		}
 	}
@@ -76,7 +83,7 @@ export default class DiaryxPlugin extends Plugin {
 			this.backend = await createBackend(this.app, this.manifest.id);
 		} catch (e) {
 			console.error("Diaryx: Failed to initialize WASM backend:", e);
-			new Notice("Diaryx: Failed to load. Check console for details.");
+			new Notice("Diaryx: failed to load. Check console for details.");
 		}
 	}
 
@@ -97,33 +104,34 @@ export default class DiaryxPlugin extends Plugin {
 
 		if (!confirmed) return;
 
-		const notice = new Notice("Diaryx: Converting vault...", 0);
+		const notice = new Notice("Diaryx: converting vault...", 0);
 		try {
-			const response = await backend.executeJs({
+			const raw = await backend.executeJs({
 				type: "ImportDirectoryInPlace",
 				params: {},
-			});
+			}) as unknown;
 
 			notice.hide();
 
-			const data = typeof response === "string" ? JSON.parse(response) : response;
-			const result = data?.data ?? data;
+			const parsed = (typeof raw === "string" ? JSON.parse(raw) as ImportResult : raw as ImportResult);
+			const result: ImportResult = parsed.data ?? parsed;
 
+			const errors = result.errors;
 			new Notice(
 				`Diaryx: Conversion complete. ` +
 				`Updated: ${result.imported ?? 0}, ` +
 				`Skipped: ${result.skipped ?? 0}` +
-				(result.errors?.length > 0 ? `, Errors: ${result.errors.length}` : ""),
+				(errors && errors.length > 0 ? `, Errors: ${errors.length}` : ""),
 				10000,
 			);
 
-			if (result.errors?.length > 0) {
-				console.warn("Diaryx import errors:", result.errors);
+			if (errors && errors.length > 0) {
+				console.warn("Diaryx import errors:", errors);
 			}
 		} catch (e) {
 			notice.hide();
 			console.error("Diaryx: Import failed:", e);
-			new Notice("Diaryx: Import failed. Check console for details.");
+			new Notice("Diaryx: import failed. Check console for details.");
 		}
 	}
 

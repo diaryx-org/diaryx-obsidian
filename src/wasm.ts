@@ -30,7 +30,5 @@ export async function createBackend(app: App, pluginId: string): Promise<DiaryxB
 
 	const callbacks = createVaultFs(app);
 
-	// createFromJsFileSystem is available in @diaryx/wasm-node >= 1.2.0
-	const backend = (DiaryxBackend as any).createFromJsFileSystem(callbacks);
-	return backend;
+	return DiaryxBackend.createFromJsFileSystem(callbacks);
 }
