@@ -45,4 +45,4 @@ jobs:
             --verify-tag \
             --title="${{ github.ref_name }}" \
             --generate-notes \
-            main.js manifest.json styles.css diaryx_wasm_bg.wasm
+            main.js manifest.json styles.css

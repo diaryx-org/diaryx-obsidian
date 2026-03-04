@@ -10,15 +10,15 @@ Obsidian plugin that maintains [Diaryx](https://diaryx.org) workspace hierarchy 
 
 ## Installation
 
-1. Copy the plugin folder into your vault's `.obsidian/plugins/diaryx-obsidian/` directory.
+1. Copy the plugin folder into your vault's `.obsidian/plugins/diaryx/` directory.
 2. Enable the plugin in Obsidian's Community Plugins settings.
 
 ## Development
 
 ```bash
-bun install
-bun run dev    # watch mode
-bun run build  # production build
+npm install
+npm run dev    # watch mode
+npm run build  # production build
 ```
 
-The build uses esbuild to bundle `src/main.ts` into `main.js` and copies the WASM binary (`diaryx_wasm_bg.wasm`) from `node_modules/@diaryx/wasm-node/` into the plugin root.
+The build uses esbuild to bundle `src/main.ts` into `main.js` and inlines the WASM binary from `@diaryx/wasm-node` into the bundle.

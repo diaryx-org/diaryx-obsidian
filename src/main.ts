@@ -20,7 +20,7 @@ export default class DiaryxPlugin extends Plugin {
 
 		// Always register commands (import is a one-time action, not gated by enabled)
 		this.addCommand({
-			id: "import-vault-to-diaryx",
+			id: "import-vault-format",
 			name: "Import vault to Diaryx format",
 			callback: () => this.importVault(),
 		});
@@ -69,7 +69,7 @@ export default class DiaryxPlugin extends Plugin {
 	private async ensureBackend(): Promise<DiaryxBackend | null> {
 		if (this.backend) return this.backend;
 		try {
-			this.backend = await createBackend(this.app, this.manifest.id);
+			this.backend = await createBackend(this.app);
 			return this.backend;
 		} catch (e) {
 			console.error("Diaryx: Failed to initialize WASM backend:", e);
@@ -80,7 +80,7 @@ export default class DiaryxPlugin extends Plugin {
 
 	private async initBackend() {
 		try {
-			this.backend = await createBackend(this.app, this.manifest.id);
+			this.backend = await createBackend(this.app);
 		} catch (e) {
 			console.error("Diaryx: Failed to initialize WASM backend:", e);
 			new Notice("Diaryx: failed to load. Check console for details.");
